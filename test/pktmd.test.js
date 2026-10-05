@@ -170,14 +170,16 @@ a3 b3
 test("ogni modello genera un file coerente (nessun riferimento orfano, nessun duplicato)", async () => {
   const { xml } = await pktmdToPkt(TUTTI_I_MODELLI);
   assert.deepEqual(validateXml(xml, { generated: true }), []);
-  // nessun dispositivo e' collocato nella vista fisica e nessun nodo-dispositivo e' rimasto nello scheletro
-  assert.equal([...xml.matchAll(/<PHYSICAL>([^<]+)<\/PHYSICAL>/g)].length, 0);
-  assert.ok(!/<TYPE>6<\/TYPE>\s*<NAME[^>]*>/.test(xml));
+  // ogni dispositivo e' collocato nella vista fisica con un proprio nodo (percorso Citta' > ... > armadio/ufficio > nodo)
+  const n = (xml.match(/<DEVICE>/g) ?? []).length;
+  const paths = [...xml.matchAll(/<PHYSICAL>([^<]+)<\/PHYSICAL>/g)].map((m) => m[1].split(","));
+  assert.equal(paths.length, n);
+  assert.ok(paths.every((p) => p.length >= 4));
 });
 
 test("il validatore trova il difetto che rendeva i file illeggibili", async () => {
   const { xml } = await pktmdToPkt("r1:\nsw1:\nlinks:\nr1 sw1\n");
-  const guasto = xml.replace("<PHYSICAL></PHYSICAL>", "<PHYSICAL>{ab536a45-590c-4c7b-9af8-4977b55b694a},{452a60f0-7c52-435f-8a00-000000000000}</PHYSICAL>");
+  const guasto = xml.replace(/<PHYSICAL>[^<]+<\/PHYSICAL>/,"<PHYSICAL>{ab536a45-590c-4c7b-9af8-4977b55b694a},{452a60f0-7c52-435f-8a00-000000000000}</PHYSICAL>");
   assert.match(validateXml(guasto).join("\n"), /vista fisica cita/);
   const doppio = xml.replace(/<SAVE_REF_ID>([^<]+)<\/SAVE_REF_ID>/g, "<SAVE_REF_ID>save-ref-id:1</SAVE_REF_ID>");
   assert.match(validateXml(doppio).join("\n"), /SAVE_REF_ID duplicato/);

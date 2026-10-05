@@ -2857,6 +2857,115 @@ var pktmd = (() => {
       cpur.selfClosing = true;
     }
   }
+  var RACK_HEIGHT = { "2901": 8, "2911": 11, "1841": 8, "2960-24TT": 4, "2950-24": 4, "Router-PT": 7, "Router-PT-Empty": 7, "Switch-PT": 9, "Switch-PT-Empty": 9, "Server-PT": 16 };
+  var RACK_UNITS = 110;
+  function deviceNode(name, x, y, guid) {
+    const t = (tag, v) => el(tag, String(v));
+    const kids = el("CHILDREN", "");
+    kids.text = null;
+    kids.selfClosing = true;
+    const n = el("NODE", "");
+    n.text = null;
+    n.children = [
+      t("X", x),
+      t("Y", y),
+      t("TYPE", 6),
+      el("NAME", name, [["translate", "true"]]),
+      t("SX", "1e-05"),
+      t("SY", "1e-05"),
+      t("W", "0.001"),
+      t("H", "0.001"),
+      t("D", 0),
+      el("PATH", "../art/Background/grid_100x100.png", [["isanim", "false"]]),
+      kids,
+      t("MANUAL_SCALING", "false"),
+      t("SCALED_PIXMAP_WIDTH", 0),
+      t("SCALED_PIXMAP_HEIGHT", 0),
+      t("INIT_WIDTH", "0.001"),
+      t("INIT_HEIGHT", "0.001"),
+      t("INIT_DEPTH", 0),
+      t("INIT_SX", "1e-05"),
+      t("INIT_SY", "1e-05"),
+      t("INIT_SZ", "1e-05"),
+      t("BG_TILED", "false"),
+      t("CUSTOM_IMAGE_WIDTH", -1),
+      t("CUSTOM_IMAGE_HEIGHT", -1),
+      t("SCALE_FACTOR", 1),
+      t("UUID_STR", guid),
+      t("SLOT", 0),
+      t("SUB_SLOT", 0),
+      t("ICP_CSX", 0),
+      t("ICP_CSY", 0)
+    ];
+    return n;
+  }
+  function placeDevices(root, devices, newGuid) {
+    const pw = child(root, "PHYSICALWORKSPACE");
+    const holderOf = (node) => [node, child(node, "CHILDREN")].filter(Boolean);
+    const found = {};
+    const go = (node, acc) => {
+      for (const h2 of holderOf(node)) {
+        for (const c of childrenOf(h2, "NODE")) {
+          const p = [...acc, textOf(c, "UUID_STR")];
+          const type = textOf(c, "TYPE");
+          if ((type === "2" || type === "4") && !found[type]) found[type] = { node: c, path: p };
+          go(c, p);
+        }
+      }
+    };
+    go(pw, []);
+    const office = found["2"], rack = found["4"];
+    if (!office || !rack) throw new Error("lo scheletro non ha ufficio e armadio nella vista fisica");
+    for (const z of [office, rack]) {
+      const k = child(z.node, "CHILDREN");
+      k.selfClosing = false;
+      k.text = null;
+    }
+    let nextRack = 4, nextOffice = 0;
+    for (const dn of devices) {
+      const eng = child(dn, "ENGINE");
+      const name = textOf(eng, "NAME");
+      const model = child(eng, "TYPE")?.attrs.find(([k]) => k === "model")?.[1] ?? "";
+      const height = RACK_HEIGHT[model] ?? 8;
+      const inRack = model !== "PC-PT" && nextRack + height <= RACK_UNITS;
+      const guid = newGuid();
+      let x, y, zone;
+      if (inRack) {
+        x = nextRack;
+        y = 0;
+        nextRack += height;
+        zone = rack;
+      } else {
+        x = 86 * (nextOffice % 10 + 1);
+        y = 215 + 100 * Math.floor(nextOffice / 10);
+        nextOffice++;
+        zone = office;
+      }
+      child(zone.node, "CHILDREN").children.push(deviceNode(name, x, y, guid));
+      const ws = child(dn, "WORKSPACE");
+      const phys = child(ws, "PHYSICAL");
+      phys.children = [];
+      phys.text = [...zone.path, guid].join(",");
+      phys.selfClosing = false;
+      const cpur = child(ws, "PHYSICAL_CPUR");
+      const f = (tag, v) => el(tag, String(v));
+      cpur.selfClosing = false;
+      cpur.text = null;
+      cpur.children = [
+        f("X_PN", inRack ? 0.1 : +(x / 2e3).toFixed(5)),
+        f("Y_PN", inRack ? 0.05 : +(y / 2e3).toFixed(5)),
+        f("X", x),
+        f("Y", y),
+        f("SLOT", 0),
+        f("SUBSLOT", 0),
+        f("PARENT_PATH", zone.path.join(",")),
+        f("CONTAINER_ID", zone.path[zone.path.length - 1]),
+        f("ICP_CONTAINER_SCENE_X", 0),
+        f("ICP_CONTAINER_SCENE_Y", 0),
+        f("ORIGINAL_DEVICE_UUID", newGuid())
+      ];
+    }
+  }
 
   // src/validate.js
   var GUID = /\{[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\}/g;
@@ -2873,6 +2982,7 @@ var pktmd = (() => {
     for (const d of devices) {
       const name = textOf(child(d, "ENGINE"), "NAME");
       const phys = textOf(child(d, "WORKSPACE"), "PHYSICAL");
+      if (generated && !phys) problems.push(`${name}: non e' collocato nella vista fisica (Packet Tracer rifiuta il file)`);
       for (const g of phys.match(GUID) ?? []) {
         if (!known.has(g.toLowerCase())) problems.push(`${name}: la vista fisica cita ${g}, che non esiste nel file`);
       }
@@ -3438,6 +3548,8 @@ var pktmd = (() => {
     }
     child(netNode, "DEVICES").children = [...built.values()].map((b) => b.dn);
     child(netNode, "LINKS").children = linkNodes;
+    const guidRng = mulberry32(seedOf("vista-fisica:" + [...built.keys()].join(",")));
+    placeDevices(root, [...built.values()].map((b) => b.dn), () => uuid(guidRng));
     const problems = validateXml(root, { generated: true });
     if (problems.length) throw new Error(`Il file generato non e' coerente (errore di pktmd, non del testo): ${problems.slice(0, 4).join("; ")}`);
     return serializeXml(root);

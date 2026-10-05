@@ -12,7 +12,7 @@ import { lowerIos } from "./ios-lower.js";
 import { compile, simplify } from "./implied.js";
 import { liftHost, applyHost } from "./hosts.js";
 import { autoLayout } from "./layout.js";
-import { stripPhysicalDevices, cleanOptions, unplace } from "./skeleton.js";
+import { stripPhysicalDevices, cleanOptions, unplace, placeDevices } from "./skeleton.js";
 import { validateXml } from "./validate.js";
 import { resolveLinks, resolveLinksSafe, mergeLinkOptions } from "./links.js";
 import { applyCli } from "./cli.js";
@@ -418,6 +418,8 @@ export async function toXml(network, { layout = true, warnings = [] } = {}) {
 
   child(netNode, "DEVICES").children = [...built.values()].map((b) => b.dn);
   child(netNode, "LINKS").children = linkNodes;
+  const guidRng = mulberry32(seedOf("vista-fisica:" + [...built.keys()].join(",")));
+  placeDevices(root, [...built.values()].map((b) => b.dn), () => uuid(guidRng));
   // rete di sicurezza: un file incoerente verrebbe rifiutato da Packet Tracer ("file corrotto"), meglio fermarsi qui
   const problems = validateXml(root, { generated: true });
   if (problems.length) throw new Error(`Il file generato non e' coerente (errore di pktmd, non del testo): ${problems.slice(0, 4).join("; ")}`);

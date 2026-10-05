@@ -22,6 +22,7 @@ export function validateXml(xml, { generated = false } = {}) {
   for (const d of devices) {
     const name = textOf(child(d, "ENGINE"), "NAME");
     const phys = textOf(child(d, "WORKSPACE"), "PHYSICAL");
+    if (generated && !phys) problems.push(`${name}: non e' collocato nella vista fisica (Packet Tracer rifiuta il file)`);
     for (const g of phys.match(GUID) ?? []) {
       if (!known.has(g.toLowerCase())) problems.push(`${name}: la vista fisica cita ${g}, che non esiste nel file`);
     }
