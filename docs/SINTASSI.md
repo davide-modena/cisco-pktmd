@@ -198,6 +198,7 @@ dns 8.8.8.8                      ip name-server
 ```
 links:
   pc1 sw1                       prima porta libera di ciascuno
+  pc1,pc2,pc3 sw1               piu' cavi in una riga: uno per ogni nome dell'elenco
   pc1 sw1 vlan 10               + porta access in VLAN 10 sullo switch
   sw1 r1 trunk                  + trunk (tutte le VLAN)
   sw1 sw2 trunk 10,20 native 99

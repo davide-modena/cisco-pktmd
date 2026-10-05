@@ -69,6 +69,8 @@ links:
   sw1 r1
 ```
 
+Per collegare piu' dispositivi allo stesso apparato puoi scrivere un elenco separato da virgole: `pc1,pc2 sw1` equivale a `pc1 sw1` e `pc2 sw1` (le opzioni, come `vlan 10`, valgono per tutti).
+
 Non hai scelto nessuna porta e nessun cavo: il convertitore prende **la prima porta libera** di ciascun dispositivo (le sigle `fa0/1`, `gi0/0` che vedi nello schema) e sceglie il **tipo di cavo** giusto (dritto, incrociato, fibra, seriale).
 
 Il router ha ricevuto un indirizzo con `gi0/0 192.168.1.254/24`: una riga che **comincia col nome di una porta** configura quella porta. Ne parliamo nel [capitolo 3](#3-le-porte).

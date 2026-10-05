@@ -224,7 +224,7 @@ export function parsePktmd(text) {
 
     // ---- collegamenti
     if (t === "---" || /^links\s*:$/i.test(t)) { inLinks = true; cur = null; continue; }
-    if (inLinks) { links.push(parseLink(t, ln)); continue; }
+    if (inLinks) { links.push(...parseLink(t, ln)); continue; }
 
     // ---- intestazione di dispositivo
     const h = HEADER_RE.exec(t);
@@ -298,9 +298,10 @@ function finishDevice(d) {
 const LINK_SEPARATORS = new Set(["-", "--", "->", "<->", "=", "=="]);
 
 function parseLink(t, ln) {
-  const toks = t.split(/\s+/).filter((x) => !LINK_SEPARATORS.has(x));
+  const toks = t.replace(/\s*,\s*/g, ",").split(/\s+/).filter((x) => !LINK_SEPARATORS.has(x));
   if (toks.length < 2) throw new PktmdError(`collegamento non valido: "${t}" (servono due estremi, es. "pc1 sw1")`, ln);
-  const ends = toks.slice(0, 2).map((tok) => {
+  // ogni estremo puo' essere un elenco ("pc1,pc2 sw1"): un collegamento per ogni coppia
+  const endsOf = (list) => list.split(",").filter(Boolean).map((tok) => {
     const k = tok.indexOf(".");
     const dev = k < 0 ? tok : tok.slice(0, k);
     let port;
@@ -310,7 +311,8 @@ function parseLink(t, ln) {
     }
     return { dev, port };
   });
-  const link = { a: ends[0], b: ends[1], line: ln };
+  const sides = [endsOf(toks[0]), endsOf(toks[1])];
+  if (sides.some((s) => !s.length)) throw new PktmdError(`collegamento non valido: "${t}"`, ln);
   const opts = {};
   const rest = toks.slice(2);
   for (let i = 0; i < rest.length; i++) {
@@ -325,8 +327,11 @@ function parseLink(t, ln) {
     else throw new PktmdError(`opzione di collegamento sconosciuta "${rest[i]}" (valide: vlan N, trunk [lista] [native N], clock [rate])`, ln);
   }
   if (opts.vlan !== undefined && opts.trunk) throw new PktmdError("un collegamento non puo' essere insieme \"vlan\" e \"trunk\"", ln);
-  if (Object.keys(opts).length) link.opts = opts;
-  return link;
+  return sides[0].flatMap((a) => sides[1].map((b) => {
+    const link = { a: { ...a }, b: { ...b }, line: ln };
+    if (Object.keys(opts).length) link.opts = { ...opts, ...(opts.trunk ? { trunk: { ...opts.trunk } } : {}) };
+    return link;
+  }));
 }
 
 // ---------------------------------------------------------------------------------------------------------------

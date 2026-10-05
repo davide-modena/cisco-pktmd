@@ -190,3 +190,8 @@ test("il template non contiene dati personali", async () => {
   const testo = serializeXml(tpl.skeleton) + [...tpl.models.values()].map(serializeXml).join("");
   assert.ok(!/\/Users\/|[A-Z]:\Users\|\/home\/|@[\w-]+\.\w+/.test(testo), "percorsi o indirizzi personali nel template");
 });
+
+test("collegamenti con elenco: pc1,pc2 sw1", () => {
+  const { network } = parsePktmd(["pc1:", "pc2:", "sw1:", "links:", "  pc1, pc2 sw1 vlan 10", ""].join("\n"));
+  assert.deepEqual(network.links.map((l) => [l.a.dev, l.b.dev, l.opts.vlan]), [["pc1", "sw1", 10], ["pc2", "sw1", 10]]);
+});
