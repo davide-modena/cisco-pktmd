@@ -1,0 +1,91 @@
+// Edificio a 6 piani: router -> core -> 3 distribution -> 6 switch di piano -> PC.
+// Una VLAN per piano (10..60). Le VLAN si scrivono solo sui collegamenti: access verso i PC, trunk tra gli switch.
+// Le sottointerfacce del router (router-on-a-stick) sono sei righe.
+
+router: router 2911
+  gi0/0 vlan 10 172.16.10.254/24
+  gi0/0 vlan 20 172.16.20.254/24
+  gi0/0 vlan 30 172.16.30.254/24
+  gi0/0 vlan 40 172.16.40.254/24
+  gi0/0 vlan 50 172.16.50.254/24
+  gi0/0 vlan 60 172.16.60.254/24
+
+SW_core: switch
+distribution1: switch
+distribution2: switch
+distribution3: switch
+piano_terra: switch
+primo_piano: switch
+secondo_piano: switch
+terzo_piano: switch
+quarto_piano: switch
+attico: switch
+
+PC0:
+  ip 172.16.10.1/24
+  gw 172.16.10.254
+PC1:
+  ip 172.16.10.2/24
+  gw 172.16.10.254
+PC2:
+  ip 172.16.10.3/24
+  gw 172.16.10.254
+PC3:
+  ip 172.16.20.1/24
+  gw 172.16.20.254
+PC4:
+  ip 172.16.20.2/24
+  gw 172.16.20.254
+PC5:
+  ip 172.16.20.3/24
+  gw 172.16.20.254
+PC6:
+  ip 172.16.30.1/24
+  gw 172.16.30.254
+PC7:
+  ip 172.16.30.2/24
+  gw 172.16.30.254
+PC8:
+  ip 172.16.40.1/24
+  gw 172.16.40.254
+PC9:
+  ip 172.16.40.2/24
+  gw 172.16.40.254
+PC10:
+  ip 172.16.50.1/24
+  gw 172.16.50.254
+PC11:
+  ip 172.16.50.2/24
+  gw 172.16.50.254
+PC12:
+  ip 172.16.60.1/24
+  gw 172.16.60.254
+PC13:
+  ip 172.16.60.2/24
+  gw 172.16.60.254
+
+links:
+  router SW_core trunk
+  SW_core distribution1 trunk
+  SW_core distribution2 trunk
+  SW_core distribution3 trunk
+  distribution1 piano_terra trunk 10,20
+  distribution1 primo_piano trunk 20,30
+  distribution2 secondo_piano trunk 30,40
+  distribution2 terzo_piano trunk 40,50
+  distribution3 quarto_piano trunk 50,60
+  distribution3 attico trunk 60,10
+  PC0 piano_terra vlan 10
+  PC1 piano_terra vlan 10
+  PC2 piano_terra vlan 10
+  PC3 primo_piano vlan 20
+  PC4 primo_piano vlan 20
+  PC5 primo_piano vlan 20
+  PC6 secondo_piano vlan 30
+  PC7 secondo_piano vlan 30
+  PC8 terzo_piano vlan 40
+  PC9 terzo_piano vlan 40
+  PC10 quarto_piano vlan 50
+  PC11 quarto_piano vlan 50
+  PC12 attico vlan 60
+  PC13 attico vlan 60

@@ -1,0 +1,42 @@
+// Rete di base: 2 PC su uno switch, un server su un altro switch, un router in mezzo.
+// Il tipo si capisce dal nome (pc1, sw1, srv1, r1); le porte dei collegamenti si assegnano da sole.
+
+r1:
+  gi0/0 192.168.1.254/24
+  gi0/1 192.168.2.254/24
+  rip                          // RIPv2 sulle reti dei due lati, in un colpo solo
+
+pc1:
+  ip 192.168.1.1/24
+  gw 192.168.1.254
+
+pc2:
+  ip 192.168.1.2/24
+  gw 192.168.1.254
+
+sw1:
+sw2:
+
+srv1:
+  ip 192.168.2.1/24
+  gw 192.168.2.254
+
+  ```html index.html
+  <html>
+  <head>
+  <title>Ciao</title>
+  </head>
+  <body>
+  <h1>Ciao! Benvenuto</h1>
+  <h2>Come va?</h2>
+  <p>Oggi parleremo di Cisco</p>
+  </body>
+  </html>
+  ```
+
+links:
+  pc1 sw1
+  pc2 sw1
+  srv1 sw2
+  sw1 r1
+  sw2 r1

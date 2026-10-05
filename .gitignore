@@ -1,0 +1,6 @@
+node_modules/
+
+# file di laboratorio (materiale del corso): non si pubblicano
+/examples/*.pkt
+/samples/
+/examples/pktmd/bug/

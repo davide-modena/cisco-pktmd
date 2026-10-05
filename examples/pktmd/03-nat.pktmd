@@ -1,0 +1,37 @@
+// Una LAN dietro un router con PAT, un server pubblicato con NAT statico e il "mondo esterno".
+// Le interfacce inside/outside e le ACL del NAT si deducono dalle regole.
+
+r1:
+  gi0/0 192.168.1.254/24                  // LAN
+  gi0/1 8.8.9.1/24                        // verso Internet
+  route default via 8.8.9.254
+  nat overload 192.168.1.0/24             // PAT: tutta la LAN esce con l'IP di gi0/1
+  nat static tcp 192.168.1.10:80 8.8.9.1:80   // il sito web della LAN e' raggiungibile da fuori
+
+web:  server
+  ip 192.168.1.10/24
+  gw 192.168.1.254
+
+pc1:
+  ip 192.168.1.1/24
+  gw 192.168.1.254
+  dns 8.8.8.8
+
+sw1:
+
+isp: router
+  gi0/0 8.8.9.254/24
+  gi0/1 8.8.8.254/24
+
+google: server
+  ip 8.8.8.8/24
+  gw 8.8.8.254
+  dns on
+  a www.google.it 8.8.8.8
+
+links:
+  pc1 sw1
+  web sw1
+  sw1 r1
+  r1 isp
+  isp google

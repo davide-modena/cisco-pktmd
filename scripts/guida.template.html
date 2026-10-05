@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guida a pktmd</title>
+<link rel="icon" type="image/svg+xml" href="/*FAVICON*/">
+<script>
+  // il tema si applica subito per evitare lampi; chiaro se non c'e' una scelta salvata
+  try { if (localStorage.getItem("pktmd-theme") === "dark") document.documentElement.dataset.theme = "dark"; } catch {}
+</script>
+<style>
+  :root {
+    --bg: #f6f8fa; --panel: #ffffff; --text: #1b2430; --muted: #5d6b7a; --line: #d8dee6; --accent: #2563eb;
+    --code-bg: #0f1722; --code-text: #d7e2f0; --code-line: #243245;
+    --kw: #7cc4ff; --opt: #e6b673; --num: #b9a3f0; --cmt: #6f8196; --hdr: #ffd479; --ip: #8fe3b0; --port: #f29fb5;
+    --inline: #eef2f7; --callout: #eaf2ff; --callout-line: #2563eb; --err: #b42318; --err-bg: #fef3f2; --warn: #92400e; --warn-bg: #fffbeb;
+  }
+  /* il tema chiaro e' quello predefinito; lo scuro si sceglie con il pulsante */
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0b0f14; --panel: #11161d; --text: #e6edf5; --muted: #9aa7b6; --line: #232c37; --accent: #5b9bff;
+    --code-bg: #0a0f16; --code-text: #d7e2f0; --code-line: #22303f;
+    --inline: #1a2330; --callout: #14233a; --callout-line: #5b9bff; --err: #fda29b; --err-bg: #2a1213; --warn: #fcd34d; --warn-bg: #271d06;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: 16px; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.65 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .layout { display: grid; grid-template-columns: 270px minmax(0, 1fr); gap: 0; max-width: 1480px; margin: 0 auto; }
+  nav#toc { position: sticky; top: 0; align-self: start; height: 100vh; overflow: auto; padding: 24px 16px 24px 24px; border-right: 1px solid var(--line); font-size: 14px; }
+  nav#toc .brand { font-weight: 700; font-size: 17px; margin-bottom: 4px; }
+  nav#toc .sub { color: var(--muted); font-size: 12.5px; margin-bottom: 16px; }
+  nav#toc a { display: block; color: var(--muted); text-decoration: none; padding: 3px 8px; border-radius: 6px; line-height: 1.35; }
+  nav#toc a:hover { color: var(--text); background: var(--inline); }
+  nav#toc a.h3 { padding-left: 22px; font-size: 13px; }
+  nav#toc a.h2 { margin-top: 6px; font-weight: 600; }
+  nav#toc a.active { color: var(--accent); background: var(--callout); }
+  .tools { margin-top: 18px; display: flex; gap: 8px; }
+  .tools button { font: inherit; font-size: 13px; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 5px 10px; cursor: pointer; }
+  .tools button:hover { border-color: var(--accent); }
+  main { padding: 28px 40px 120px; min-width: 0; max-width: 1180px; }
+  main h1 { font-size: 34px; line-height: 1.2; margin: 0 0 8px; letter-spacing: -.01em; }
+  main h2 { font-size: 26px; margin: 56px 0 8px; padding-top: 12px; border-top: 1px solid var(--line); letter-spacing: -.01em; }
+  main h3 { font-size: 19px; margin: 34px 0 4px; }
+  main h1 .anchor, main h2 .anchor, main h3 .anchor { color: var(--muted); text-decoration: none; margin-left: -1.1em; padding-right: .35em; opacity: 0; font-weight: 400; }
+  main h2:hover .anchor, main h3:hover .anchor { opacity: .7; }
+  main p, main li { max-width: 78ch; }
+  main hr { border: 0; border-top: 1px solid var(--line); margin: 36px 0; }
+  main a { color: var(--accent); }
+  main code { background: var(--inline); border-radius: 5px; padding: .08em .38em; font: .88em ui-monospace, "Cascadia Mono", Consolas, monospace; }
+  main pre code { background: none; padding: 0; font-size: 13.5px; }
+  main blockquote { margin: 18px 0; padding: 12px 18px; background: var(--callout); border-left: 4px solid var(--callout-line); border-radius: 0 10px 10px 0; max-width: 78ch; }
+  main blockquote p { margin: 6px 0; }
+  main table { border-collapse: collapse; margin: 16px 0; font-size: 14.5px; display: block; overflow-x: auto; max-width: 100%; }
+  main th, main td { border: 1px solid var(--line); padding: 7px 12px; text-align: left; vertical-align: top; }
+  main th { background: var(--inline); }
+  main td code { white-space: nowrap; }
+  pre.code { background: var(--code-bg); color: var(--code-text); border: 1px solid var(--code-line); border-radius: 10px; padding: 14px 18px; overflow: auto; margin: 14px 0; line-height: 1.55; max-width: 100%; }
+  pre.code .kw { color: var(--kw); } pre.code .opt { color: var(--opt); } pre.code .num { color: var(--num); }
+  pre.code .cmt { color: var(--cmt); font-style: italic; } pre.code .hdr { color: var(--hdr); font-weight: 600; }
+  pre.code .ip { color: var(--ip); } pre.code .port { color: var(--port); }
+  .cab { display: inline-block; width: 34px; height: 0; border-top: 3px solid #4b5a6b; vertical-align: middle; margin: 0 4px 3px 2px; }
+  .cab.cross { border-top-style: dashed; } .cab.fiber { border-top-color: #e08a00; } .cab.serial { border-top-color: #d33a2c; border-top-style: double; border-top-width: 5px; }
+
+  /* esempio vivo */
+  .demo { display: grid; grid-template-columns: minmax(280px, 42%) minmax(0, 1fr); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; margin: 18px 0 22px; background: var(--panel); }
+  .d-code { background: var(--code-bg); display: flex; flex-direction: column; min-width: 0; }
+  .d-bar { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--code-line); color: #8da2ba; font: 12px system-ui, sans-serif; text-transform: uppercase; letter-spacing: .08em; }
+  .d-bar span { flex: 1; }
+  .d-bar button { font: 12px system-ui, sans-serif; text-transform: none; letter-spacing: 0; color: #cfe0f4; background: #17212e; border: 1px solid #2a3b50; border-radius: 6px; padding: 3px 9px; cursor: pointer; }
+  .d-bar button:hover { border-color: #5b9bff; }
+  .d-bar button.on { background: #1f3a63; border-color: #5b9bff; }
+  .d-code textarea { flex: 1; width: 100%; resize: none; border: 0; outline: none; background: transparent; color: var(--code-text); padding: 12px 14px; font: 13px/1.55 ui-monospace, "Cascadia Mono", Consolas, monospace; tab-size: 2; white-space: pre; overflow: auto; }
+  .d-view { display: flex; flex-direction: column; min-width: 0; border-left: 1px solid var(--line); }
+  .d-canvas { position: relative; flex: 1; min-height: 160px; }
+  .d-msg { font-size: 13px; padding: 0; }
+  .d-msg div { padding: 6px 12px; }
+  .d-msg .err { color: var(--err); background: var(--err-bg); } .d-msg .warn { color: var(--warn); background: var(--warn-bg); }
+  .d-ios { grid-column: 1 / -1; border-top: 1px solid var(--code-line); background: var(--code-bg); color: var(--code-text); }
+  .d-ios .tabs { display: flex; gap: 6px; padding: 8px 12px 0; }
+  .d-ios .tabs button { font: 12.5px system-ui, sans-serif; color: #cfe0f4; background: #17212e; border: 1px solid #2a3b50; border-radius: 6px; padding: 3px 10px; cursor: pointer; }
+  .d-ios .tabs button.on { background: #1f3a63; border-color: #5b9bff; }
+  .d-ios pre { margin: 0; padding: 10px 14px 14px; font: 12.5px/1.5 ui-monospace, "Cascadia Mono", Consolas, monospace; max-height: 420px; overflow: auto; }
+  .d-ios .count { padding: 8px 14px 0; color: #8da2ba; font: 12px system-ui, sans-serif; }
+
+  @media (max-width: 1000px) {
+    .layout { grid-template-columns: 1fr; }
+    nav#toc { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--line); max-height: 40vh; }
+    main { padding: 20px 18px 80px; }
+    .demo { grid-template-columns: 1fr; }
+    .d-view { border-left: 0; border-top: 1px solid var(--line); }
+    .d-code textarea { min-height: 160px; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+  <nav id="toc"></nav>
+  <main id="content"></main>
+</div>
+
+<script>/*MARKED*/</script>
+<script>/*PKTMD_LIB*/</script>
+<script>
+const MARKDOWN = /*MARKDOWN_JSON*/;
+
+(function () {
+  "use strict";
+  const md = window.marked.marked ?? window.marked;
+  const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const slug = (s) => s.toLowerCase().replace(/`/g, "").replace(/[^\p{L}\p{N}\s-]/gu, "").trim().replace(/\s+/g, "-");
+
+  // ---- evidenziazione del codice pktmd ------------------------------------------------------------------------------
+  const KW = new Set("name pos ip gw dns domain vlan route rip ospf nat dhcp acl enable user vty console ssh module mail a cname ns http https ntp ftp tftp syslog".split(" "));
+  const OPT = new Set("access trunk native down up via ad area passive none default static v1 v2 autosum overload pool for static tcp udp inside outside off on exclude from max helper desc clock gw dns permit deny any host eq gt lt neq range established log secret password slot serial sfp links".split(" "));
+  function highlight(src) {
+    return src.split("\n").map((line) => {
+      const cm = /(^|\s)\/\/.*$/.exec(line);
+      const code = cm ? line.slice(0, cm.index + cm[1].length) : line;
+      const comment = cm ? line.slice(cm.index + cm[1].length) : "";
+      let out = "";
+      const hm = /^(\s*)([\w.-]+:)(\s|$)/.exec(code) || /^(\s*)(links:)(\s|$)/.exec(code);
+      let i = 0;
+      if (hm) { out += esc(hm[1]) + `<span class="hdr">${esc(hm[2])}</span>`; i = hm[1].length + hm[2].length; }
+      let first = !hm;
+      const re = /(\d+\.\d+\.\d+\.\d+(?:\/\d+)?)|((?:fa|gi|se|vlan)\d+(?:\/\d+)*(?:\.\d+)?(?:-\d+)?)|(\d+(?:,\d+)*)|([A-Za-z_][\w-]*)|(\s+)|(.)/g;
+      re.lastIndex = i;
+      let m;
+      while ((m = re.exec(code))) {
+        if (m[1]) out += `<span class="ip">${esc(m[1])}</span>`;
+        else if (m[2]) out += `<span class="port">${esc(m[2])}</span>`;
+        else if (m[3]) out += `<span class="num">${esc(m[3])}</span>`;
+        else if (m[4]) {
+          const w = m[4];
+          if (first && KW.has(w.toLowerCase())) out += `<span class="kw">${esc(w)}</span>`;
+          else if (OPT.has(w.toLowerCase())) out += `<span class="opt">${esc(w)}</span>`;
+          else out += esc(w);
+          first = false;
+        } else if (m[5]) out += m[5];
+        else out += esc(m[6]);
+      }
+      return out + (comment ? `<span class="cmt">${esc(comment)}</span>` : "");
+    }).join("\n");
+  }
+
+  // ---- markdown -> html ---------------------------------------------------------------------------------------------
+  const demos = [];
+  md.use({
+    renderer: {
+      code({ text, lang }) {
+        const [kind, ...attrs] = (lang || "").trim().split(/\s+/);
+        if (kind === "pktmd") { demos.push({ text, attrs }); return `<div class="demo" data-i="${demos.length - 1}"></div>`; }
+        if (kind === "pktmd-code") return `<pre class="code"><code>${highlight(text)}</code></pre>`;
+        return `<pre class="code"><code>${esc(text)}</code></pre>`;
+      },
+      heading({ tokens, depth }) {
+        const html = this.parser.parseInline(tokens);
+        const id = slug(tokens.map((t) => t.raw ?? t.text ?? "").join(""));
+        return `<h${depth} id="${id}"><a class="anchor" href="#${id}">#</a>${html}</h${depth}>\n`;
+      },
+    },
+  });
+  const content = document.getElementById("content");
+  content.innerHTML = md.parse(MARKDOWN);
+
+  // ---- indice -------------------------------------------------------------------------------------------------------
+  const toc = document.getElementById("toc");
+  const title = content.querySelector("h1");
+  toc.innerHTML = `<div class="brand">pktmd</div><div class="sub">Guida alla sintassi</div>`;
+  const heads = [...content.querySelectorAll("h2, h3")];
+  for (const h of heads) {
+    const a = document.createElement("a");
+    a.href = "#" + h.id;
+    a.className = h.tagName.toLowerCase();
+    a.textContent = h.textContent.replace(/^#/, "");
+    toc.appendChild(a);
+  }
+  const tools = document.createElement("div");
+  tools.className = "tools";
+  const themeBtn = document.createElement("button");
+  const isDark = () => document.documentElement.dataset.theme === "dark";
+  const themeName = () => (isDark() ? "dark" : "light");
+  themeBtn.textContent = isDark() ? "Tema chiaro" : "Tema scuro";
+  tools.appendChild(themeBtn);
+  toc.appendChild(tools);
+  const links = [...toc.querySelectorAll("a")];
+  const spy = new IntersectionObserver((entries) => {
+    for (const e of entries) if (e.isIntersecting) {
+      links.forEach((l) => l.classList.toggle("active", l.getAttribute("href") === "#" + e.target.id));
+    }
+  }, { rootMargin: "0px 0px -75% 0px" });
+  heads.forEach((h) => spy.observe(h));
+  void title;
+
+  // ---- esempi vivi --------------------------------------------------------------------------------------------------
+  const mounted = [];
+  function setupDemo(el) {
+    const d = demos[+el.dataset.i];
+    const attrs = Object.fromEntries(d.attrs.map((a) => { const k = a.indexOf("="); return k < 0 ? [a, true] : [a.slice(0, k), a.slice(k + 1)]; }));
+    const h = +(attrs.h || 280);
+    const iosWanted = attrs.ios ? (attrs.ios === true ? null : String(attrs.ios).split(",")) : undefined;
+    el.innerHTML = `
+      <div class="d-code"><div class="d-bar"><span>pktmd</span><button class="b-reset" title="Torna al testo originale">Ripristina</button>${iosWanted !== undefined ? '<button class="b-ios">IOS generato</button>' : ""}</div><textarea spellcheck="false" autocomplete="off" style="height:${h}px"></textarea></div>
+      <div class="d-view"><div class="d-canvas" style="height:${h}px"></div><div class="d-msg"></div></div>
+      <div class="d-ios" hidden></div>`;
+    const ta = el.querySelector("textarea");
+    const msg = el.querySelector(".d-msg");
+    const iosBox = el.querySelector(".d-ios");
+    const iosBtn = el.querySelector(".b-ios");
+    ta.value = d.text;
+    const m = pktmd.mountNetwork(el.querySelector(".d-canvas"), undefined, { theme: themeName() });
+    mounted.push(m);
+    let seq = 0, iosOn = false, iosTab = null;
+
+    const showMsg = (items) => { msg.replaceChildren(...items.map(([c, t]) => Object.assign(document.createElement("div"), { className: c, textContent: t }))); };
+
+    async function renderIos(text) {
+      if (!iosOn) return;
+      const cfg = await pktmd.previewConfig(text);
+      const names = (iosWanted ?? [...cfg.keys()]).filter((n) => cfg.has(n));
+      if (!names.length) { iosBox.innerHTML = '<div class="count">Nessun router o switch da mostrare.</div>'; return; }
+      if (!names.includes(iosTab)) iosTab = names[0];
+      iosBox.innerHTML = "";
+      const tabs = document.createElement("div");
+      tabs.className = "tabs";
+      for (const n of names) {
+        const b = document.createElement("button");
+        b.textContent = n; b.className = n === iosTab ? "on" : "";
+        b.onclick = () => { iosTab = n; renderIos(text); };
+        tabs.appendChild(b);
+      }
+      const lines = cfg.get(iosTab);
+      const count = document.createElement("div");
+      count.className = "count";
+      count.textContent = `${lines.length} righe di IOS generate da questo testo`;
+      const pre = document.createElement("pre");
+      pre.textContent = lines.join("\n");
+      iosBox.append(tabs, count, pre);
+    }
+
+    async function update() {
+      const token = ++seq;
+      const text = ta.value;
+      const r = await pktmd.checkPktmd(text);
+      if (token !== seq) return;
+      if (!r.ok) { showMsg([["err", r.error]]); return; }
+      await m.setText(text);
+      showMsg(r.warnings.map((w) => ["warn", w]));
+      await renderIos(text);
+    }
+    let timer;
+    ta.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(update, 220); });
+    ta.addEventListener("keydown", (ev) => {
+      if (ev.key === "Tab") { ev.preventDefault(); ta.setRangeText("  ", ta.selectionStart, ta.selectionEnd, "end"); ta.dispatchEvent(new Event("input")); }
+    });
+    el.querySelector(".b-reset").onclick = () => { ta.value = d.text; update(); };
+    if (iosBtn) iosBtn.onclick = () => {
+      iosOn = !iosOn;
+      iosBtn.classList.toggle("on", iosOn);
+      iosBox.hidden = !iosOn;
+      if (iosOn) update();
+    };
+    update();
+  }
+  // gli esempi si montano quando stanno per comparire
+  const lazy = new IntersectionObserver((entries) => {
+    for (const e of entries) if (e.isIntersecting) { lazy.unobserve(e.target); setupDemo(e.target); }
+  }, { rootMargin: "400px 0px" });
+  document.querySelectorAll(".demo").forEach((el) => lazy.observe(el));
+
+  // chiaro di default, scuro a richiesta (la scelta resta salvata nel browser)
+  themeBtn.onclick = () => {
+    const dark = !isDark();
+    if (dark) document.documentElement.dataset.theme = "dark"; else delete document.documentElement.dataset.theme;
+    themeBtn.textContent = dark ? "Tema chiaro" : "Tema scuro";
+    mounted.forEach((m) => m.view.setTheme(themeName()));
+    try { localStorage.setItem("pktmd-theme", themeName()); } catch {}
+  };
+
+  if (location.hash) setTimeout(() => document.getElementById(decodeURIComponent(location.hash.slice(1)))?.scrollIntoView(), 50);
+})();
+</script>
+</body>
+</html>

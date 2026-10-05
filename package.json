@@ -1,0 +1,38 @@
+{
+  "name": "pktmd",
+  "version": "0.2.0",
+  "description": "Packet Tracer .pkt <-> .pktmd (testo semplice) con schema di rete",
+  "type": "module",
+  "main": "src/index.js",
+  "bin": {
+    "pktmd": "bin/pktmd.js"
+  },
+  "scripts": {
+    "build:templates": "node scripts/build-templates.mjs",
+    "test": "node --test",
+    "fidelity": "node scripts/fidelity.mjs --text",
+    "web": "node web/serve.mjs",
+    "build:lib": "node scripts/build-lib.mjs",
+    "build:guide": "node scripts/build-guide.mjs",
+    "build": "node scripts/build-lib.mjs && node scripts/build-guide.mjs"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "marked": "^18.0.14"
+  },
+  "exports": {
+    ".": {
+      "import": "./src/index.js"
+    },
+    "./browser": "./dist/pktmd.esm.js"
+  },
+  "files": [
+    "src",
+    "dist",
+    "bin",
+    "docs/guida.html",
+    "docs/SINTASSI.md",
+    "README.md"
+  ]
+}

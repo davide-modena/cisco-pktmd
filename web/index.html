@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pktmd – convertitore Packet Tracer</title>
+<link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
+<script>
+  // il tema si applica subito (prima del disegno) per evitare lampi; chiaro se non c'e' una scelta salvata
+  try { if (localStorage.getItem("pktmd-theme") === "dark") document.documentElement.dataset.theme = "dark"; } catch {}
+</script>
+<style>
+  :root {
+    --bg: #f6f8fa; --panel: #ffffff; --text: #1b2430; --muted: #5d6b7a; --line: #d8dee6;
+    --accent: #2563eb; --accent-text: #ffffff; --err: #b42318; --err-bg: #fef3f2; --warn: #92400e; --warn-bg: #fffbeb;
+  }
+  /* il tema chiaro e' quello predefinito; lo scuro si sceglie con il pulsante */
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0b0f14; --panel: #11161d; --text: #e6edf5; --muted: #9aa7b6; --line: #232c37;
+    --accent: #3b82f6; --accent-text: #ffffff; --err: #fda29b; --err-bg: #2a1213; --warn: #fcd34d; --warn-bg: #271d06;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, sans-serif; display: flex; flex-direction: column; }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel); }
+  header h1 { font-size: 16px; margin: 0 12px 0 0; letter-spacing: .2px; }
+  header h1 span { color: var(--muted); font-weight: 400; }
+  button, select, label.btn {
+    font: inherit; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+    padding: 6px 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+  }
+  button:hover, select:hover, label.btn:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  .sep { flex: 1; }
+  main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(300px, 36%) 1fr; }
+  .pane { min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--panel); }
+  .pane + .pane { border-left: 1px solid var(--line); }
+  .pane h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0; padding: 8px 16px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 12px; }
+  textarea {
+    flex: 1; min-height: 0; width: 100%; resize: none; border: 0; outline: none; padding: 12px 16px;
+    background: transparent; color: var(--text); font: 13px/1.5 ui-monospace, Consolas, "Cascadia Mono", monospace; tab-size: 2; white-space: pre; overflow: auto;
+  }
+  #msgs { max-height: 30%; overflow: auto; }
+  #msgs div { padding: 6px 16px; font-size: 13px; }
+  #msgs .err { color: var(--err); background: var(--err-bg); }
+  #msgs .warn { color: var(--warn); background: var(--warn-bg); }
+  #view { flex: 1; min-height: 0; position: relative; }
+  #drop { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; font-size: 22px; background: color-mix(in srgb, var(--accent) 18%, transparent); border: 3px dashed var(--accent); z-index: 9; pointer-events: none; }
+  body.dragging #drop { display: flex; }
+  .hint { color: var(--muted); font-size: 12px; padding: 6px 16px; border-top: 1px solid var(--line); }
+  @media (max-width: 800px) {
+    main { grid-template-columns: 1fr; grid-template-rows: 1fr 1.4fr; }
+    .pane + .pane { border-left: 0; border-top: 1px solid var(--line); }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>pktmd <span>Packet Tracer ⇄ testo</span></h1>
+  <label class="btn">Apri .pkt / .pktmd<input id="file" type="file" accept=".pkt,.pktmd,.txt" hidden></label>
+  <select id="examples" title="Esempi">
+    <option value="">Esempi…</option>
+    <option value="01-rete-base">Rete di base</option>
+    <option value="02-vlan-router-on-a-stick">VLAN + router-on-a-stick</option>
+    <option value="03-nat">NAT / PAT</option>
+    <option value="04-servizi">DNS, DHCP, posta, web</option>
+    <option value="05-wan-rip-seriale">WAN seriale + RIP</option>
+    <option value="06-edificio">Edificio a 6 piani</option>
+  </select>
+  <span class="sep"></span>
+  <button id="relayout" title="Rimette i dispositivi dove li metterebbe la disposizione automatica">Riordina</button>
+  <button id="pin" title="Scrive nel testo le posizioni attuali dei dispositivi (righe pos x y)">Fissa posizioni</button>
+  <button id="fit">Centra</button>
+  <button id="legend">Legenda</button>
+  <button id="theme" title="Cambia tema">Tema scuro</button>
+  <button id="dlText">Scarica .pktmd</button>
+  <button id="dlPkt" class="primary">Scarica .pkt</button>
+</header>
+<main>
+  <section class="pane">
+    <h2><span>Rete (.pktmd)</span><span id="status"></span></h2>
+    <textarea id="src" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
+    <div id="msgs"></div>
+  </section>
+  <section class="pane">
+    <h2><span>Schema</span><span>trascina un nodo (porta con se' i collegati; Maiusc = solo lui) · rotella = zoom · doppio clic = centra</span></h2>
+    <div id="view"></div>
+    <div class="hint">Un .pkt aperto viene convertito in testo; le impostazioni non rappresentate nel testo non vengono conservate.</div>
+  </section>
+</main>
+<div id="drop">Rilascia un file .pkt o .pktmd</div>
+
+<script type="module">
+import {
+  parsePktmd, pktToPktmd, pktmdToPkt, createNetworkView, toPtCoords, toXml, describeNetwork,
+} from "../src/index.js";
+
+const $ = (id) => document.getElementById(id);
+const src = $("src"), msgs = $("msgs"), status = $("status");
+
+const isDark = () => document.documentElement.dataset.theme === "dark";
+const view = createNetworkView($("view"), { theme: isDark() ? "dark" : "light" });
+let current = null;     // ultima rete valida
+let baseName = "rete";
+let seq = 0;
+
+function show(items) {
+  msgs.replaceChildren(...items.map(([cls, text]) => Object.assign(document.createElement("div"), { className: cls, textContent: text })));
+}
+
+async function refresh({ fit = false } = {}) {
+  const token = ++seq;
+  let network, warnings;
+  try {
+    ({ network, warnings } = parsePktmd(src.value));
+  } catch (e) {
+    status.textContent = "errore";
+    show([["err", e.message]]);
+    return false;
+  }
+  current = network;
+  status.textContent = `${network.devices.length} dispositivi · ${network.links.length} collegamenti`;
+  const described = await describeNetwork(network);
+  if (token !== seq) return true;
+  view.setNetwork(network, described);
+  if (fit) view.fit();
+  show(warnings.map((w) => ["warn", w]));
+  // controlli che richiedono l'hardware (porte inesistenti, moduli, tipi di cavo...)
+  const extra = [];
+  try {
+    await toXml(network, { layout: false, warnings: extra });
+    if (token === seq && extra.length) show([...warnings, ...extra].map((w) => ["warn", w]));
+  } catch (e) {
+    if (token === seq) { status.textContent = "errore"; show([["err", e.message]]); }
+    return false;
+  }
+  return true;
+}
+
+let timer;
+src.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(refresh, 200); });
+src.addEventListener("keydown", (ev) => {
+  if (ev.key === "Tab") {
+    ev.preventDefault();
+    const { selectionStart: a, selectionEnd: b } = src;
+    src.setRangeText("  ", a, b, "end");
+    src.dispatchEvent(new Event("input"));
+  }
+});
+
+function download(name, data, type) {
+  const url = URL.createObjectURL(new Blob([data], { type }));
+  Object.assign(document.createElement("a"), { href: url, download: name }).click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+$("dlText").onclick = () => download(`${baseName}.pktmd`, src.value, "text/plain");
+$("dlPkt").onclick = async () => {
+  if (!(await refresh())) return;
+  try {
+    const { bytes } = await pktmdToPkt(src.value);
+    download(`${baseName}.pkt`, bytes, "application/octet-stream");
+  } catch (e) {
+    show([["err", e.message]]);
+  }
+};
+$("fit").onclick = () => view.fit();
+$("relayout").onclick = () => { view.relayout(); view.fit(); };
+$("legend").onclick = () => view.toggleLegend();
+
+// tema: chiaro di default, scuro a richiesta (la scelta resta salvata nel browser)
+function applyTheme(dark) {
+  if (dark) document.documentElement.dataset.theme = "dark"; else delete document.documentElement.dataset.theme;
+  $("theme").textContent = dark ? "Tema chiaro" : "Tema scuro";
+  view.setTheme(dark ? "dark" : "light");
+  try { localStorage.setItem("pktmd-theme", dark ? "dark" : "light"); } catch {}
+}
+$("theme").onclick = () => applyTheme(!isDark());
+$("theme").textContent = isDark() ? "Tema chiaro" : "Tema scuro";
+
+$("examples").onchange = async (ev) => {
+  const name = ev.target.value;
+  if (!name) return;
+  const res = await fetch(`../examples/pktmd/${name}.pktmd`);
+  src.value = await res.text();
+  baseName = name;
+  await refresh({ fit: true });
+  ev.target.value = "";
+};
+
+// scrive `pos x y` nel testo, dopo l'intestazione di ogni dispositivo (o al posto della riga pos esistente)
+$("pin").onclick = async () => {
+  if (!(await refresh())) return;
+  const pts = toPtCoords(view.getPositions(), { scale: 0.75 });
+  const lines = src.value.replace(/\r\n?/g, "\n").split("\n");
+  const edits = current.devices.map((d) => ({ d, p: pts.get(d.id) })).filter((e) => e.p)
+    .sort((a, b) => (b.d.posLine ?? b.d.line) - (a.d.posLine ?? a.d.line));
+  for (const { d, p } of edits) {
+    const text = `  pos ${p.x} ${p.y}`;
+    if (d.posLine) lines[d.posLine - 1] = text;
+    else lines.splice(d.line, 0, text);
+  }
+  src.value = lines.join("\n");
+  await refresh({ fit: true });
+};
+
+async function openFile(file) {
+  baseName = file.name.replace(/\.(pkt|pktmd|txt)$/i, "");
+  try {
+    let warn = [];
+    if (/\.pkt$/i.test(file.name)) {
+      const { text, warnings } = await pktToPktmd(new Uint8Array(await file.arrayBuffer()));
+      src.value = text;
+      warn = warnings.map((w) => ["warn", w]);
+    } else src.value = await file.text();
+    const ok = await refresh({ fit: true });
+    if (ok && warn.length) show([...warn, ...[...msgs.children].map((c) => [c.className, c.textContent])]);
+  } catch (e) {
+    show([["err", `impossibile leggere ${file.name}: ${e.message}`]]);
+  }
+}
+$("file").onchange = (ev) => { const f = ev.target.files[0]; if (f) openFile(f); ev.target.value = ""; };
+addEventListener("dragover", (ev) => { ev.preventDefault(); document.body.classList.add("dragging"); });
+addEventListener("dragleave", (ev) => { if (!ev.relatedTarget) document.body.classList.remove("dragging"); });
+addEventListener("drop", (ev) => {
+  ev.preventDefault();
+  document.body.classList.remove("dragging");
+  const f = ev.dataTransfer.files[0];
+  if (f) openFile(f);
+});
+
+// parte con l'esempio piu' ricco
+$("examples").value = "06-edificio";
+$("examples").dispatchEvent(new Event("change"));
+</script>
+</body>
+</html>

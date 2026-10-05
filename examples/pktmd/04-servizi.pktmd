@@ -1,0 +1,44 @@
+// Server DNS, DHCP, posta e web sulla stessa LAN. I PC prendono l'indirizzo in DHCP.
+
+r1:
+  gi0/0 192.168.1.254/24
+
+sw1:
+
+dns1: server
+  ip 192.168.1.250/24
+  gw 192.168.1.254
+  a www.yellow.it 192.168.1.251        // record A
+  a dns.yellow.it 192.168.1.250
+  cname web.yellow.it www.yellow.it    // alias
+  dhcp 192.168.1.0/24 gw 192.168.1.254 dns 192.168.1.250 from 192.168.1.100 max 50
+
+www: server
+  ip 192.168.1.251/24
+  gw 192.168.1.254
+  ```html index.html
+  <html><h1>yellow.it</h1></html>
+  ```
+
+mail: server
+  ip 192.168.1.252/24
+  gw 192.168.1.254
+  mail yellow.it
+  user alessandro 123
+  user marco 123
+
+pc1:
+  ip dhcp
+  mail alessandro@yellow.it 123      // server posta: pop3.yellow.it / smtp.yellow.it
+
+pc2:
+  ip dhcp
+  mail marco@yellow.it 123
+
+links:
+  r1 sw1
+  dns1 sw1
+  www sw1
+  mail sw1
+  pc1 sw1
+  pc2 sw1
