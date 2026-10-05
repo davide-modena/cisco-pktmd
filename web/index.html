@@ -100,7 +100,7 @@ const $ = (id) => document.getElementById(id);
 const src = $("src"), msgs = $("msgs"), status = $("status");
 
 const isDark = () => document.documentElement.dataset.theme === "dark";
-const view = createNetworkView($("view"), { theme: isDark() ? "dark" : "light" });
+const view = createNetworkView($("view"), { theme: isDark() ? "dark" : "light", autoFit: true });
 let current = null;     // ultima rete valida
 let baseName = "rete";
 let seq = 0;

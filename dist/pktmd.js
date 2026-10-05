@@ -3837,6 +3837,69 @@ var pktmd = (() => {
     let drag = null;
     let showLegend = false;
     let userView = false;
+    let vt = { x: 0, y: 0, k: 1 };
+    let ghosts = { nodes: [], links: [] };
+    let raf = 0, last = 0;
+    const still = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const ease = (t) => 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3);
+    const clamp01 = (t) => Math.min(1, Math.max(0, t));
+    function step(now) {
+      raf = 0;
+      const dt = Math.min(250, now - (last || now));
+      last = now;
+      const f = 1 - Math.exp(-dt / 110);
+      let busy = false;
+      for (const n of nodes) {
+        if (drag?.ids?.includes(n.id)) continue;
+        if (Math.abs(n.tx - n.x) > 0.3 || Math.abs(n.ty - n.y) > 0.3) {
+          n.x += (n.tx - n.x) * f;
+          n.y += (n.ty - n.y) * f;
+          busy = true;
+        } else {
+          n.x = n.tx;
+          n.y = n.ty;
+        }
+        if (n.appear < 1) {
+          n.appear = Math.min(1, n.appear + dt / 380);
+          busy = true;
+        }
+      }
+      for (const l of links) if (l.p < 1) {
+        l.p = Math.min(1, l.p + dt / 520);
+        busy = true;
+      }
+      for (const g of [...ghosts.nodes, ...ghosts.links]) {
+        g.life -= dt / 260;
+        busy = true;
+      }
+      ghosts = { nodes: ghosts.nodes.filter((g) => g.life > 0), links: ghosts.links.filter((g) => g.life > 0) };
+      for (const k of ["x", "y", "k"]) {
+        const d = vt[k] - view[k];
+        if (Math.abs(d) > (k === "k" ? 5e-4 : 0.3)) {
+          view[k] += d * f;
+          busy = true;
+        } else view[k] = vt[k];
+      }
+      draw();
+      if (busy) raf = requestAnimationFrame(step);
+      else last = 0;
+    }
+    function kick() {
+      if (still() || typeof requestAnimationFrame !== "function" || typeof document !== "undefined" && document.hidden) {
+        for (const n of nodes) {
+          n.x = n.tx;
+          n.y = n.ty;
+          n.appear = 1;
+        }
+        for (const l of links) l.p = 1;
+        ghosts = { nodes: [], links: [] };
+        view = { ...vt };
+        draw();
+      } else if (!raf) {
+        last = 0;
+        raf = requestAnimationFrame(step);
+      }
+    }
     const dark = () => opts.theme === "dark" || opts.theme === "auto" && matchMedia("(prefers-color-scheme: dark)").matches;
     function resize() {
       const r = container.getBoundingClientRect();
@@ -3844,7 +3907,7 @@ var pktmd = (() => {
       size = { w: Math.max(50, r.width), h: Math.max(50, r.height), dpr };
       canvas.width = Math.round(size.w * dpr);
       canvas.height = Math.round(size.h * dpr);
-      if (opts.autoFit && !userView && nodes.length) api.fit();
+      if (opts.autoFit && !userView && nodes.length) api.fit(false);
       else draw();
     }
     const ro = new ResizeObserver(resize);
@@ -3890,7 +3953,7 @@ var pktmd = (() => {
         const A = map.get(l.a), B = map.get(l.b);
         if (!A || !B) continue;
         const w = measure(l.badge, "600 10.5px system-ui, sans-serif") + 10;
-        const r = { x: (A.x + B.x) / 2 - w / 2, y: (A.y + B.y) / 2 - 8, w, h: 16, text: l.badge };
+        const r = { x: (A.x + B.x) / 2 - w / 2, y: (A.y + B.y) / 2 - 8, w, h: 16, text: l.badge, link: l };
         badges.push(r);
         placed.push(r);
       }
@@ -3909,7 +3972,7 @@ var pktmd = (() => {
           for (let k = 0; k < 9; k++) {
             const t = start + k * 13;
             if (t > d - ICON - 6) break;
-            const r = { x: n.x + ux * t - w / 2, y: n.y + uy * t - h2 / 2, w, h: h2, text };
+            const r = { x: n.x + ux * t - w / 2, y: n.y + uy * t - h2 / 2, w, h: h2, text, link: l };
             const own = placed.filter((s) => s !== nameBoxes.get(n.id) || true);
             const hit = own.some((s) => overlaps(r, s));
             if (!best) best = r;
@@ -3938,14 +4001,36 @@ var pktmd = (() => {
       ctx.save();
       ctx.translate(w / 2 + view.x, h2 / 2 + view.y);
       ctx.scale(view.k, view.k);
+      for (const g of ghosts.links) {
+        ctx.globalAlpha = clamp01(g.life);
+        strokeLink(ctx, c, g.kind, g.A, g.B, g.trunk);
+      }
+      ctx.globalAlpha = 1;
       for (const l of links) {
         const A = map.get(l.a), B = map.get(l.b);
         if (!A || !B) continue;
-        strokeLink(ctx, c, l.kind, A, B, l.trunk);
+        const q = l.p >= 1 ? 1 : ease(l.p);
+        const end2 = q >= 1 ? B : { x: A.x + (B.x - A.x) * q, y: A.y + (B.y - A.y) * q };
+        ctx.globalAlpha = Math.min(1, 0.35 + q);
+        strokeLink(ctx, c, l.kind, A, end2, l.trunk);
       }
-      for (const n of nodes) {
+      ctx.globalAlpha = 1;
+      for (const g of ghosts.nodes) {
         ctx.save();
+        ctx.globalAlpha = clamp01(g.life);
+        ctx.translate(g.x, g.y);
+        ctx.scale(0.8 + 0.2 * clamp01(g.life), 0.8 + 0.2 * clamp01(g.life));
+        if (DRAW[g.type]) DRAW[g.type](ctx, c);
+        else drawOther(ctx, c, g.model ?? g.type);
+        ctx.restore();
+      }
+      ctx.globalAlpha = 1;
+      for (const n of nodes) {
+        const grow = ease(n.appear);
+        ctx.save();
+        ctx.globalAlpha = grow;
         ctx.translate(n.x, n.y);
+        ctx.scale(0.55 + 0.45 * grow, 0.55 + 0.45 * grow);
         if (n === hover || n === drag?.node) {
           ctx.beginPath();
           ctx.arc(0, 0, ICON + 6, 0, 7);
@@ -3958,6 +4043,7 @@ var pktmd = (() => {
         if (DRAW[n.type]) DRAW[n.type](ctx, c);
         else drawOther(ctx, c, n.model ?? n.type);
         ctx.restore();
+        ctx.globalAlpha = grow;
         const nb = boxes.nameBoxes.get(n.id);
         const left = nb.x > n.x;
         ctx.textBaseline = "top";
@@ -3988,11 +4074,14 @@ var pktmd = (() => {
           ctx.textAlign = "left";
           n.lines.forEach((t, i) => ctx.fillText(t, cb.x + 7, cb.y + 5 + i * 14));
         }
+        ctx.globalAlpha = 1;
       }
       if (detail) {
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         for (const b of boxes.badges) {
+          ctx.globalAlpha = clamp01((b.link.p - 0.7) / 0.3);
+          if (ctx.globalAlpha <= 0) continue;
           rr(ctx, b.x, b.y, b.w, b.h, 8);
           ctx.fillStyle = c.badge;
           ctx.fill();
@@ -4004,6 +4093,8 @@ var pktmd = (() => {
           ctx.fillText(b.text, b.x + b.w / 2, b.y + b.h / 2 + 0.5);
         }
         for (const p of boxes.pills) {
+          ctx.globalAlpha = clamp01((p.link.p - 0.7) / 0.3);
+          if (ctx.globalAlpha <= 0) continue;
           rr(ctx, p.x, p.y, p.w, p.h, 4);
           ctx.fillStyle = c.pill;
           ctx.fill();
@@ -4014,6 +4105,7 @@ var pktmd = (() => {
           ctx.font = "10.5px ui-monospace, Consolas, monospace";
           ctx.fillText(p.text, p.x + p.w / 2, p.y + p.h / 2 + 0.5);
         }
+        ctx.globalAlpha = 1;
       }
       ctx.restore();
       if (showLegend) drawLegend(c);
@@ -4071,16 +4163,16 @@ var pktmd = (() => {
         const map = byId();
         for (const id of drag.ids) {
           const o = drag.origin.get(id), n = map.get(id);
-          n.x = o.x + (w.x - drag.start.x);
-          n.y = o.y + (w.y - drag.start.y);
+          n.x = n.tx = o.x + (w.x - drag.start.x);
+          n.y = n.ty = o.y + (w.y - drag.start.y);
           n.moved = true;
         }
         opts.onMove?.();
         draw();
       } else if (drag?.pan) {
         userView = true;
-        view.x = drag.vx + p.x - drag.sx;
-        view.y = drag.vy + p.y - drag.sy;
+        view.x = vt.x = drag.vx + p.x - drag.sx;
+        view.y = vt.y = drag.vy + p.y - drag.sy;
         draw();
       } else {
         const n = nodeAt(w.x, w.y) ?? null;
@@ -4107,9 +4199,10 @@ var pktmd = (() => {
       view.k = Math.min(3, Math.max(0.2, view.k * Math.exp(-ev.deltaY * 15e-4)));
       view.x = p.x - size.w / 2 - before.x * view.k;
       view.y = p.y - size.h / 2 - before.y * view.k;
+      vt = { ...view };
       draw();
     }, { passive: false });
-    canvas.addEventListener("dblclick", () => api.fit());
+    canvas.addEventListener("dblclick", () => api.resetView());
     const api = {
       /**
        * @param net        modello (dispositivi con porte/IP)
@@ -4117,6 +4210,7 @@ var pktmd = (() => {
        */
       setNetwork(net, described) {
         const old = byId();
+        let added = 0, removed = 0;
         const rl = described?.links ?? net.links;
         layout = hierarchyLayout({ devices: net.devices, links: rl }, opts.compact ? { hostW: 140, infraW: 205, vGap: 175 } : { hostW: 170, infraW: 250, vGap: 230 });
         nodes = net.devices.map((d) => {
@@ -4128,52 +4222,109 @@ var pktmd = (() => {
           }
           const prev = old.get(d.id);
           const at = layout.pos.get(d.id);
-          const node = prev?.moved ? prev : { x: at.x, y: at.y, moved: false };
+          const node = prev ?? { x: at.x, y: at.y, tx: at.x, ty: at.y, moved: false, appear: 0 };
+          if (!prev) added++;
+          if (!node.moved) {
+            node.tx = at.x;
+            node.ty = at.y;
+          }
           return Object.assign(node, { id: d.id, type: d.type, label: d.id, model: described?.models?.get(d.id) ?? null, lines });
         });
-        links = rl.map((l) => ({
-          a: l.a.dev,
-          b: l.b.dev,
-          pa: l.a.port,
-          pb: l.b.port,
-          kind: l.kind ?? "straight",
-          trunk: !!l.opts?.trunk,
-          badge: l.opts?.trunk ? "trunk" + (l.opts.trunk.allowed ? " " + l.opts.trunk.allowed : "") : l.opts?.vlan !== void 0 ? "vlan " + l.opts.vlan : null
-        }));
-        draw();
+        const oldLinks = links;
+        const keyOf = (l) => [l.a, l.b, l.pa, l.pb].join("|");
+        const had = new Map(oldLinks.map((l) => [keyOf(l), l]));
+        links = rl.map((l) => {
+          const nl = {
+            a: l.a.dev,
+            b: l.b.dev,
+            pa: l.a.port,
+            pb: l.b.port,
+            kind: l.kind ?? "straight",
+            trunk: !!l.opts?.trunk,
+            badge: l.opts?.trunk ? "trunk" + (l.opts.trunk.allowed ? " " + l.opts.trunk.allowed : "") : l.opts?.vlan !== void 0 ? "vlan " + l.opts.vlan : null
+          };
+          const prev = had.get(keyOf(nl));
+          nl.p = prev ? prev.p : -0.35;
+          if (!prev) added++;
+          return nl;
+        });
+        const now = byId();
+        for (const [id, o] of old) if (!now.has(id)) {
+          removed++;
+          ghosts.nodes.push({ x: o.x, y: o.y, type: o.type, model: o.model, life: 1 });
+        }
+        const keep = new Set(links.map(keyOf));
+        const nodeNow = byId();
+        for (const o of oldLinks) {
+          const A = old.get(o.a), B = old.get(o.b);
+          if (!keep.has(keyOf(o)) && A && B && nodeNow.has(o.a) && nodeNow.has(o.b)) {
+            removed++;
+            ghosts.links.push({ A: { x: A.x, y: A.y }, B: { x: B.x, y: B.y }, kind: o.kind, trunk: o.trunk, life: 1 });
+          }
+        }
+        if (added || removed) {
+          if (opts.autoFit) userView = false;
+        }
+        if (!old.size) nodes.forEach((n, i) => {
+          n.appear = -i * 0.12;
+        });
+        if (opts.autoFit && !userView) api.fit(!!old.size);
+        else kick();
       },
       /** rimette tutto dove lo metterebbe il layout automatico */
       relayout() {
         for (const n of nodes) {
           const at = layout.pos.get(n.id);
           if (at) {
-            n.x = at.x;
-            n.y = at.y;
+            n.tx = at.x;
+            n.ty = at.y;
             n.moved = false;
           }
         }
-        draw();
+        if (opts.autoFit && !userView) api.fit(true);
+        else kick();
       },
       /** posizioni correnti (coordinate del disegno) */
       getPositions() {
-        return new Map(nodes.map((n) => [n.id, { x: n.x, y: n.y }]));
+        return new Map(nodes.map((n) => [n.id, { x: n.tx, y: n.ty }]));
       },
-      fit() {
+      /** centra e adatta la vista (con `animate` la vista scivola, altrimenti salta) */
+      fit(animate = true) {
         if (!nodes.length) {
-          view = { x: 0, y: 0, k: 1 };
-          draw();
+          vt = { x: 0, y: 0, k: 1 };
+          if (animate) kick();
+          else {
+            view = { ...vt };
+            draw();
+          }
           return;
+        }
+        const cur = nodes.map((n) => [n.x, n.y]);
+        for (const n of nodes) {
+          n.x = n.tx;
+          n.y = n.ty;
         }
         const boxes = computeBoxes();
         const rects = nodes.map((n) => ({ x: n.x - ICON, y: n.y - ICON, w: ICON * 2, h: ICON * 2 }));
         for (const m of [boxes.nameBoxes, boxes.cards]) rects.push(...m.values());
+        nodes.forEach((n, i) => {
+          n.x = cur[i][0];
+          n.y = cur[i][1];
+        });
         const pad = 22;
         const minX = Math.min(...rects.map((r) => r.x)) - pad, maxX = Math.max(...rects.map((r) => r.x + r.w)) + pad;
         const minY = Math.min(...rects.map((r) => r.y)) - pad, maxY = Math.max(...rects.map((r) => r.y + r.h)) + pad;
-        view.k = Math.min(1.25, Math.max(0.2, Math.min(size.w / (maxX - minX), size.h / (maxY - minY))));
-        view.x = -((minX + maxX) / 2) * view.k;
-        view.y = -((minY + maxY) / 2) * view.k;
-        draw();
+        const k = Math.min(1.25, Math.max(0.2, Math.min(size.w / (maxX - minX), size.h / (maxY - minY))));
+        vt = { k, x: -((minX + maxX) / 2) * k, y: -((minY + maxY) / 2) * k };
+        if (animate) kick();
+        else {
+          view = { ...vt };
+          for (const n of nodes) {
+            n.x = n.tx;
+            n.y = n.ty;
+          }
+          kick();
+        }
       },
       toggleLegend() {
         showLegend = !showLegend;
@@ -4186,11 +4337,12 @@ var pktmd = (() => {
       /** dopo fit() esplicito si torna al centraggio automatico */
       resetView() {
         userView = false;
-        api.fit();
+        api.fit(true);
       },
       redraw: draw,
       destroy() {
         ro.disconnect();
+        if (raf) cancelAnimationFrame(raf);
         canvas.remove();
       }
     };
